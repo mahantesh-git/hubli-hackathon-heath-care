@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Heart, ArrowLeft, AlertTriangle, CheckCircle2, Stethoscope,
-  MapPin, Phone, Navigation, Clock, Star, Building2, Pill, Loader2
+  MapPin, Phone, Navigation, Clock, Star, Building2, Pill, Loader2, Download
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { AnimatedButton } from "@/components/AnimatedButton";
 import { toast } from "sonner";
+import { exportResultToPDF } from "@/lib/pdfExport";
 
 interface SymptomCheck {
   id: string;
@@ -63,6 +65,7 @@ const Results = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [facilities, setFacilities] = useState<MedicalFacility[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Google Places API key - In production, use environment variable
   const GOOGLE_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY"; // User needs to add their key
@@ -313,7 +316,20 @@ const Results = () => {
       window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank');
     }
   };
+  const handleExportPDF = async () => {
+    if (!check || !suggestion) return;
 
+    setIsExporting(true);
+    try {
+      await exportResultToPDF(check, suggestion);
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export PDF. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -359,6 +375,17 @@ const Results = () => {
             <span className="text-xl font-bold text-gradient">HealthCheck</span>
           </div>
           <div className="flex items-center gap-3">
+            <AnimatedButton
+              onClick={handleExportPDF}
+              loading={isExporting}
+              loadingText="Exporting..."
+              variant="outline"
+              ripple
+              className="hover-scale"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </AnimatedButton>
             <ThemeToggle />
             <Button variant="ghost" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -373,8 +400,8 @@ const Results = () => {
         {/* Urgency Alert */}
         <AnimatedCard
           className={`mb-8 border-2 ${urgencyInfo.color === 'destructive' ? 'border-destructive bg-destructive/10' :
-              urgencyInfo.color === 'warning' ? 'border-warning bg-warning/10' :
-                'border-success bg-success/10'
+            urgencyInfo.color === 'warning' ? 'border-warning bg-warning/10' :
+              'border-success bg-success/10'
             } animate-slideUp`}
         >
           <CardContent className="pt-6">
@@ -382,8 +409,8 @@ const Results = () => {
               <div className="text-5xl">{urgencyInfo.emoji}</div>
               <div className="flex-1">
                 <h2 className={`text-2xl font-bold mb-1 ${urgencyInfo.color === 'destructive' ? 'text-destructive' :
-                    urgencyInfo.color === 'warning' ? 'text-warning' :
-                      'text-success'
+                  urgencyInfo.color === 'warning' ? 'text-warning' :
+                    'text-success'
                   }`}>
                   {urgencyInfo.text}
                 </h2>
@@ -518,8 +545,8 @@ const Results = () => {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Severity</span>
                     <Badge variant="outline" className={`capitalize ${check.severity === 'severe' ? 'border-destructive text-destructive' :
-                        check.severity === 'moderate' ? 'border-warning text-warning' :
-                          'border-success text-success'
+                      check.severity === 'moderate' ? 'border-warning text-warning' :
+                        'border-success text-success'
                       }`}>
                       {check.severity}
                     </Badge>

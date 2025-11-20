@@ -14,7 +14,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SimpleBarChart } from "@/components/SimpleBarChart";
+import { AnimatedButton } from "@/components/AnimatedButton";
 import { toast } from "sonner";
+import { exportHistoryToPDF } from "@/lib/pdfExport";
 
 interface SymptomCheck {
   id: string;
@@ -33,6 +35,7 @@ const History = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -155,8 +158,22 @@ const History = () => {
     .slice(0, 5)
     .map(([label, value]) => ({ label, value }));
 
-  const handleExport = () => {
-    toast.success("Export feature coming soon!");
+  const handleExport = async () => {
+    if (filteredChecks.length === 0) {
+      toast.error("No checks to export");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      await exportHistoryToPDF(filteredChecks);
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export PDF. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -334,10 +351,18 @@ const History = () => {
                       <p className="text-sm text-muted-foreground">
                         Showing {filteredChecks.length} of {checks.length} checks
                       </p>
-                      <Button variant="outline" size="sm" onClick={handleExport}>
+                      <AnimatedButton
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExport}
+                        loading={isExporting}
+                        loadingText="Exporting..."
+                        ripple
+                        className="hover-scale"
+                      >
                         <Download className="mr-2 h-4 w-4" />
-                        Export
-                      </Button>
+                        Export PDF
+                      </AnimatedButton>
                     </div>
                   </CardContent>
                 </AnimatedCard>
