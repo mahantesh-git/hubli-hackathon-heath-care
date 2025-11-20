@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Heart, ArrowLeft, AlertTriangle, CheckCircle2, Stethoscope,
-  MapPin, Phone, Navigation, Clock, Star, Building2, Pill, Loader2, Download
+  MapPin, Phone, Navigation, Clock, Star, Building2, Pill, Loader2, Download,
+  ChevronDown, ChevronUp, Lightbulb, UserCheck, Tag
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -14,6 +15,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { AnimatedButton } from "@/components/AnimatedButton";
 import { toast } from "sonner";
 import { exportResultToPDF } from "@/lib/pdfExport";
+import { generateHealthInsights, type HealthInsights } from "@/lib/healthInsights";
 
 interface SymptomCheck {
   id: string;
@@ -66,6 +68,8 @@ const Results = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [facilities, setFacilities] = useState<MedicalFacility[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [insights, setInsights] = useState<HealthInsights | null>(null);
+  const [showDeepInsight, setShowDeepInsight] = useState(false);
 
   // Google Places API key - In production, use environment variable
   const GOOGLE_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY"; // User needs to add their key
@@ -95,6 +99,19 @@ const Results = () => {
 
         if (suggestionData) {
           setSuggestion(suggestionData as any);
+
+          // Generate health insights
+          const conditions = Array.isArray(suggestionData.possible_conditions)
+            ? suggestionData.possible_conditions as string[]
+            : ["General Health Concern"];
+          const healthInsights = generateHealthInsights(
+            conditions,
+            checkData.symptoms as any[],
+            checkData.severity,
+            suggestionData.urgency_level,
+            suggestionData.suggestions_text
+          );
+          setInsights(healthInsights);
         }
       }
 
@@ -317,11 +334,11 @@ const Results = () => {
     }
   };
   const handleExportPDF = async () => {
-    if (!check || !suggestion) return;
+    if (!check || !suggestion || !insights) return;
 
     setIsExporting(true);
     try {
-      await exportResultToPDF(check, suggestion);
+      await exportResultToPDF(check, suggestion, insights);
       toast.success("PDF exported successfully!");
     } catch (error) {
       console.error("Export error:", error);
@@ -358,7 +375,8 @@ const Results = () => {
 
   const urgencyInfo = getUrgencyInfo(suggestion.urgency_level);
   const UrgencyIcon = urgencyInfo.icon;
-  const mainCondition = suggestion.possible_conditions?.[0] || "General Health Concern";
+  const conditions = suggestion.possible_conditions || ["General Health Concern"];
+  const mainCondition = conditions[0];
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -425,24 +443,159 @@ const Results = () => {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Analysis */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Main Diagnosis */}
+            {/* All Likely Conditions */}
             <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.1s" }}>
               <CardHeader>
-                <CardTitle className="text-2xl">📋 Likely Condition</CardTitle>
+                <CardTitle className="text-2xl">📋 Likely Conditions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="p-6 glass rounded-lg mb-4">
-                  <h3 className="text-xl font-bold mb-2 text-primary">{mainCondition}</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    {suggestion.suggestions_text}
-                  </p>
+                <div className="space-y-3">
+                  {conditions.map((condition: string, index: number) => (
+                    <div
+                      key={index}
+                      className={`p-4 glass rounded-lg ${index === 0 ? 'border-2 border-primary' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Badge className={index === 0 ? "gradient-primary text-white" : "bg-muted"}>
+                          {index + 1}
+                        </Badge>
+                        <div className="flex-1">
+                          <h3 className={`font-bold mb-1 ${index === 0 ? 'text-primary text-lg' : 'text-base'}`}>
+                            {condition}
+                          </h3>
+                          {index === 0 && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {suggestion.suggestions_text}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </AnimatedCard>
 
+            {/* Keywords & Insights */}
+            {insights && (
+              <>
+                {/* Keywords */}
+                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.15s" }}>
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Tag className="h-5 w-5 text-primary" />
+                      Medical Keywords
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {insights.keywords.map((keyword, index) => (
+                        <Badge
+                          key={index}
+                          variant="outline"
+                          className="px-3 py-1.5 text-sm border-primary/30 hover:bg-primary/10 transition-colors"
+                        >
+                          {keyword}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </AnimatedCard>
+
+                {/* General Insight */}
+                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.2s" }}>
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Lightbulb className="h-5 w-5 text-warning" />
+                      Quick Insight
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {insights.generalInsight}
+                    </p>
+                  </CardContent>
+                </AnimatedCard>
+
+                {/* Deep Insight - Expandable */}
+                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.25s" }}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Lightbulb className="h-5 w-5 text-primary" />
+                        Detailed Analysis
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowDeepInsight(!showDeepInsight)}
+                        className="hover-scale"
+                      >
+                        {showDeepInsight ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-1" />
+                            Hide Details
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-1" />
+                            View Insight
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  {showDeepInsight && (
+                    <CardContent>
+                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                        {insights.deepInsight.split('\n').map((paragraph, index) => (
+                          <p key={index} className="text-muted-foreground leading-relaxed mb-3">
+                            {paragraph}
+                          </p>
+                        ))}
+                      </div>
+                    </CardContent>
+                  )}
+                </AnimatedCard>
+
+                {/* Doctor Recommendation */}
+                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.3s" }}>
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <UserCheck className="h-5 w-5 text-success" />
+                      Recommended Doctor Type
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 glass rounded-lg border-2 border-success/30">
+                      <h3 className="text-lg font-bold text-success mb-2">
+                        {insights.doctorRecommendation.specialty}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {insights.doctorRecommendation.reason}
+                      </p>
+                      {insights.doctorRecommendation.alternativeSpecialties &&
+                        insights.doctorRecommendation.alternativeSpecialties.length > 0 && (
+                          <div className="mt-3 pt-3 border-t">
+                            <p className="text-xs text-muted-foreground mb-2">Alternative Specialists:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {insights.doctorRecommendation.alternativeSpecialties.map((alt, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {alt}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  </CardContent>
+                </AnimatedCard>
+              </>
+            )}
+
             {/* Key Precautions */}
             {suggestion.home_remedies && suggestion.home_remedies.length > 0 && (
-              <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.2s" }}>
+              <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.35s" }}>
                 <CardHeader>
                   <CardTitle className="text-2xl">⚡ Key Precautions</CardTitle>
                 </CardHeader>
@@ -460,7 +613,7 @@ const Results = () => {
             )}
 
             {/* Nearby Doctors */}
-            <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.3s" }}>
+            <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.4s" }}>
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Stethoscope className="h-6 w-6 text-primary" />

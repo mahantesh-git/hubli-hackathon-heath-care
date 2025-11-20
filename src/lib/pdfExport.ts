@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import type { HealthInsights } from "./healthInsights";
 
 interface SymptomCheck {
     id: string;
@@ -22,7 +23,8 @@ interface Suggestion {
  */
 export const exportResultToPDF = async (
     check: SymptomCheck,
-    suggestion: Suggestion
+    suggestion: Suggestion,
+    insights?: HealthInsights
 ) => {
     try {
         const pdf = new jsPDF("p", "mm", "a4");
@@ -127,22 +129,123 @@ export const exportResultToPDF = async (
         );
         yPosition += 15;
 
-        // Possible Condition
-        if (suggestion.possible_conditions && suggestion.possible_conditions.length > 0) {
-            if (yPosition > pageHeight - 40) {
+        // Keywords Section (if insights available)
+        if (insights && insights.keywords.length > 0) {
+            if (yPosition > pageHeight - 30) {
                 pdf.addPage();
                 yPosition = 20;
             }
 
             pdf.setFontSize(14);
             pdf.setFont("helvetica", "bold");
-            pdf.text("Likely Condition", 20, yPosition);
+            pdf.text("Medical Keywords", 20, yPosition);
+            yPosition += 7;
+
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "normal");
+            const keywordsText = insights.keywords.join(" • ");
+            const keywordLines = pdf.splitTextToSize(keywordsText, pageWidth - 40);
+            keywordLines.forEach((line: string) => {
+                if (yPosition > pageHeight - 20) {
+                    pdf.addPage();
+                    yPosition = 20;
+                }
+                pdf.setTextColor(59, 130, 246);
+                pdf.text(line, 20, yPosition);
+                yPosition += 5;
+            });
+            yPosition += 10;
+        }
+
+        // All Likely Conditions
+        if (suggestion.possible_conditions && suggestion.possible_conditions.length > 0) {
+            if (yPosition > pageHeight - 40) {
+                pdf.addPage();
+                yPosition = 20;
+            }
+
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(14);
+            pdf.setFont("helvetica", "bold");
+            pdf.text("Likely Conditions", 20, yPosition);
             yPosition += 7;
 
             pdf.setFontSize(11);
             pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(59, 130, 246);
-            pdf.text(suggestion.possible_conditions[0], 20, yPosition);
+            suggestion.possible_conditions.forEach((condition: string, index: number) => {
+                if (yPosition > pageHeight - 20) {
+                    pdf.addPage();
+                    yPosition = 20;
+                }
+                pdf.setTextColor(index === 0 ? 59 : 100, index === 0 ? 130 : 100, index === 0 ? 246 : 100);
+                pdf.text(`${index + 1}. ${condition}`, 20, yPosition);
+                yPosition += 6;
+            });
+            yPosition += 10;
+        }
+
+        // Doctor Recommendation (if insights available)
+        if (insights && insights.doctorRecommendation) {
+            if (yPosition > pageHeight - 40) {
+                pdf.addPage();
+                yPosition = 20;
+            }
+
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(14);
+            pdf.setFont("helvetica", "bold");
+            pdf.text("Recommended Doctor Type", 20, yPosition);
+            yPosition += 7;
+
+            pdf.setFontSize(11);
+            pdf.setFont("helvetica", "bold");
+            pdf.setTextColor(34, 197, 94);
+            pdf.text(insights.doctorRecommendation.specialty, 20, yPosition);
+            yPosition += 6;
+
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(`Reason: ${insights.doctorRecommendation.reason}`, 20, yPosition);
+            yPosition += 6;
+
+            if (insights.doctorRecommendation.alternativeSpecialties &&
+                insights.doctorRecommendation.alternativeSpecialties.length > 0) {
+                pdf.setTextColor(100, 100, 100);
+                pdf.text(
+                    `Alternatives: ${insights.doctorRecommendation.alternativeSpecialties.join(", ")}`,
+                    20,
+                    yPosition
+                );
+                yPosition += 10;
+            }
+            yPosition += 5;
+        }
+
+        // General Insight (if available)
+        if (insights && insights.generalInsight) {
+            if (yPosition > pageHeight - 40) {
+                pdf.addPage();
+                yPosition = 20;
+            }
+
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(14);
+            pdf.setFont("helvetica", "bold");
+            pdf.text("General Insight", 20, yPosition);
+            yPosition += 7;
+
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "normal");
+            const generalLines = pdf.splitTextToSize(insights.generalInsight, pageWidth - 40);
+            generalLines.forEach((line: string) => {
+                if (yPosition > pageHeight - 20) {
+                    pdf.addPage();
+                    yPosition = 20;
+                }
+                pdf.text(line, 20, yPosition);
+                yPosition += 5;
+            });
             yPosition += 10;
         }
 
@@ -173,6 +276,33 @@ export const exportResultToPDF = async (
             yPosition += 5;
         });
         yPosition += 10;
+
+        // Deep Insight (if available)
+        if (insights && insights.deepInsight) {
+            if (yPosition > pageHeight - 50) {
+                pdf.addPage();
+                yPosition = 20;
+            }
+
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(14);
+            pdf.setFont("helvetica", "bold");
+            pdf.text("Detailed Insight", 20, yPosition);
+            yPosition += 7;
+
+            pdf.setFontSize(9);
+            pdf.setFont("helvetica", "normal");
+            const deepLines = pdf.splitTextToSize(insights.deepInsight, pageWidth - 40);
+            deepLines.forEach((line: string) => {
+                if (yPosition > pageHeight - 20) {
+                    pdf.addPage();
+                    yPosition = 20;
+                }
+                pdf.text(line, 20, yPosition);
+                yPosition += 4;
+            });
+            yPosition += 10;
+        }
 
         // Home Remedies / Precautions
         if (suggestion.home_remedies && suggestion.home_remedies.length > 0) {
