@@ -82,9 +82,12 @@ const Landing = () => {
         </div>
       </nav>
 
+      {/* Spacer for fixed nav */}
+      <div className="h-20" />
+
       {/* Hero Section with Parallax */}
-      <ParallaxSection speed={0.3}>
-        <section className="pt-32 pb-20 px-4 relative">
+      <ParallaxSection speed={0.3} disabled={true}>
+        <section className="pt-12 pb-20 px-4 relative">
           <div className="absolute inset-0 gradient-mesh opacity-30" />
           <div className="container mx-auto text-center max-w-4xl relative z-10">
             <ScrollReveal animation="slideDown">

@@ -16,6 +16,10 @@ import { AnimatedButton } from "@/components/AnimatedButton";
 import { toast } from "sonner";
 import { exportResultToPDF } from "@/lib/pdfExport";
 import { generateHealthInsights, type HealthInsights } from "@/lib/healthInsights";
+import { getUserFeatures, getUserPlanType, type PremiumFeatures } from "@/lib/subscriptionService";
+import { PremiumModal } from "@/components/PremiumModal";
+import { LockedFeature } from "@/components/LockedFeature";
+import { PremiumBadge } from "@/components/PremiumBadge";
 
 interface SymptomCheck {
   id: string;
@@ -70,6 +74,10 @@ const Results = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [insights, setInsights] = useState<HealthInsights | null>(null);
   const [showDeepInsight, setShowDeepInsight] = useState(false);
+  const [premiumFeatures, setPremiumFeatures] = useState<PremiumFeatures | null>(null);
+  const [userPlan, setUserPlan] = useState<string>("free");
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // Google Places API key - In production, use environment variable
   const GOOGLE_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY"; // User needs to add their key
@@ -81,6 +89,17 @@ const Results = () => {
         navigate("/auth");
         return;
       }
+
+      // Set user ID for premium features
+      setUserId(session.user.id);
+
+      // Fetch premium features
+      const features = await getUserFeatures(session.user.id);
+      setPremiumFeatures(features);
+
+      // Fetch user plan type
+      const plan = await getUserPlanType(session.user.id);
+      setUserPlan(plan);
 
       const { data: checkData } = await supabase
         .from("symptom_checks")
@@ -347,6 +366,21 @@ const Results = () => {
       setIsExporting(false);
     }
   };
+
+  const handleOpenPremiumModal = () => {
+    setShowPremiumModal(true);
+  };
+
+  const handleUpgradeSuccess = async () => {
+    // Refresh premium features after upgrade
+    if (userId) {
+      const features = await getUserFeatures(userId);
+      setPremiumFeatures(features);
+      const plan = await getUserPlanType(userId);
+      setUserPlan(plan);
+      toast.success("Premium features unlocked!");
+    }
+  };
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -384,7 +418,7 @@ const Results = () => {
       <div className="absolute inset-0 gradient-mesh opacity-10" />
 
       {/* Navigation */}
-      <nav className="border-b border-border glass-strong sticky top-0 z-50 relative">
+      <nav className="border-b border-border glass-strong fixed w-full top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-full gradient-rainbow flex items-center justify-center animate-float">
@@ -414,7 +448,7 @@ const Results = () => {
       </nav>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+      <div className="container mx-auto px-4 pt-28 pb-8 max-w-6xl relative z-10">
         {/* Urgency Alert */}
         <AnimatedCard
           className={`mb-8 border-2 ${urgencyInfo.color === 'destructive' ? 'border-destructive bg-destructive/10' :
@@ -479,117 +513,145 @@ const Results = () => {
             {/* Keywords & Insights */}
             {insights && (
               <>
-                {/* Keywords */}
-                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.15s" }}>
-                  <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <Tag className="h-5 w-5 text-primary" />
-                      Medical Keywords
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {insights.keywords.map((keyword, index) => (
-                        <Badge
-                          key={index}
-                          variant="outline"
-                          className="px-3 py-1.5 text-sm border-primary/30 hover:bg-primary/10 transition-colors"
-                        >
-                          {keyword}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </AnimatedCard>
-
-                {/* General Insight */}
-                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.2s" }}>
-                  <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-warning" />
-                      Quick Insight
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {insights.generalInsight}
-                    </p>
-                  </CardContent>
-                </AnimatedCard>
-
-                {/* Deep Insight - Expandable */}
-                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.25s" }}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
+                {/* Keywords - Premium Feature */}
+                <LockedFeature
+                  isLocked={!premiumFeatures?.keywords}
+                  onUnlock={handleOpenPremiumModal}
+                  featureName="Medical Keywords"
+                >
+                  <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.15s" }}>
+                    <CardHeader>
                       <CardTitle className="text-xl flex items-center gap-2">
-                        <Lightbulb className="h-5 w-5 text-primary" />
-                        Detailed Analysis
+                        <Tag className="h-5 w-5 text-primary" />
+                        Medical Keywords
+                        {premiumFeatures?.keywords && <PremiumBadge size="sm" />}
                       </CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowDeepInsight(!showDeepInsight)}
-                        className="hover-scale"
-                      >
-                        {showDeepInsight ? (
-                          <>
-                            <ChevronUp className="h-4 w-4 mr-1" />
-                            Hide Details
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-4 w-4 mr-1" />
-                            View Insight
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  {showDeepInsight && (
+                    </CardHeader>
                     <CardContent>
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        {insights.deepInsight.split('\n').map((paragraph, index) => (
-                          <p key={index} className="text-muted-foreground leading-relaxed mb-3">
-                            {paragraph}
-                          </p>
+                      <div className="flex flex-wrap gap-2">
+                        {insights.keywords.map((keyword, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="px-3 py-1.5 text-sm border-primary/30 hover:bg-primary/10 transition-colors"
+                          >
+                            {keyword}
+                          </Badge>
                         ))}
                       </div>
                     </CardContent>
-                  )}
-                </AnimatedCard>
+                  </AnimatedCard>
+                </LockedFeature>
 
-                {/* Doctor Recommendation */}
-                <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.3s" }}>
-                  <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <UserCheck className="h-5 w-5 text-success" />
-                      Recommended Doctor Type
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="p-4 glass rounded-lg border-2 border-success/30">
-                      <h3 className="text-lg font-bold text-success mb-2">
-                        {insights.doctorRecommendation.specialty}
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {insights.doctorRecommendation.reason}
+                {/* General Insight - Premium Feature */}
+                <LockedFeature
+                  isLocked={!premiumFeatures?.generalInsight}
+                  onUnlock={handleOpenPremiumModal}
+                  featureName="Quick Insight"
+                >
+                  <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.2s" }}>
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Lightbulb className="h-5 w-5 text-warning" />
+                        Quick Insight
+                        {premiumFeatures?.generalInsight && <PremiumBadge size="sm" />}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {insights.generalInsight}
                       </p>
-                      {insights.doctorRecommendation.alternativeSpecialties &&
-                        insights.doctorRecommendation.alternativeSpecialties.length > 0 && (
-                          <div className="mt-3 pt-3 border-t">
-                            <p className="text-xs text-muted-foreground mb-2">Alternative Specialists:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {insights.doctorRecommendation.alternativeSpecialties.map((alt, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {alt}
-                                </Badge>
-                              ))}
+                    </CardContent>
+                  </AnimatedCard>
+                </LockedFeature>
+
+                {/* Deep Insight - Premium Feature */}
+                <LockedFeature
+                  isLocked={!premiumFeatures?.deepInsight}
+                  onUnlock={handleOpenPremiumModal}
+                  featureName="Detailed Analysis"
+                >
+                  <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.25s" }}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xl flex items-center gap-2">
+                          <Lightbulb className="h-5 w-5 text-primary" />
+                          Detailed Analysis
+                          {premiumFeatures?.deepInsight && <PremiumBadge size="sm" />}
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowDeepInsight(!showDeepInsight)}
+                          className="hover-scale"
+                        >
+                          {showDeepInsight ? (
+                            <>
+                              <ChevronUp className="h-4 w-4 mr-1" />
+                              Hide Details
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4 mr-1" />
+                              View Insight
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    {showDeepInsight && (
+                      <CardContent>
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          {insights.deepInsight.split('\n').map((paragraph, index) => (
+                            <p key={index} className="text-muted-foreground leading-relaxed mb-3">
+                              {paragraph}
+                            </p>
+                          ))}
+                        </div>
+                      </CardContent>
+                    )}
+                  </AnimatedCard>
+                </LockedFeature>
+
+                {/* Doctor Recommendation - Premium Feature */}
+                <LockedFeature
+                  isLocked={!premiumFeatures?.doctorRecommendation}
+                  onUnlock={handleOpenPremiumModal}
+                  featureName="Doctor Recommendations"
+                >
+                  <AnimatedCard hover="lift" className="animate-slideUp" style={{ animationDelay: "0.3s" }}>
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <UserCheck className="h-5 w-5 text-success" />
+                        Recommended Doctor Type
+                        {premiumFeatures?.doctorRecommendation && <PremiumBadge size="sm" />}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-4 glass rounded-lg border-2 border-success/30">
+                        <h3 className="text-lg font-bold text-success mb-2">
+                          {insights.doctorRecommendation.specialty}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {insights.doctorRecommendation.reason}
+                        </p>
+                        {insights.doctorRecommendation.alternativeSpecialties &&
+                          insights.doctorRecommendation.alternativeSpecialties.length > 0 && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs text-muted-foreground mb-2">Alternative Specialists:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {insights.doctorRecommendation.alternativeSpecialties.map((alt, index) => (
+                                  <Badge key={index} variant="outline" className="text-xs">
+                                    {alt}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                    </div>
-                  </CardContent>
-                </AnimatedCard>
+                          )}
+                      </div>
+                    </CardContent>
+                  </AnimatedCard>
+                </LockedFeature>
               </>
             )}
 
@@ -808,6 +870,17 @@ const Results = () => {
           </div>
         )}
       </div>
+
+      {/* Premium Modal */}
+      {userId && (
+        <PremiumModal
+          open={showPremiumModal}
+          onOpenChange={setShowPremiumModal}
+          userId={userId}
+          currentPlan={userPlan}
+          onUpgradeSuccess={handleUpgradeSuccess}
+        />
+      )}
     </div>
   );
 };
